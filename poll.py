@@ -1,6 +1,7 @@
 import random
 import string
 import json
+import nltk
 
 class Student:
     id = 0
@@ -126,9 +127,65 @@ class Subject:
         return results
 
 
+def parseResponse(raw, poll):
+    n = len(poll.subjects)
 
+    def getTeachers(subs):
+        res = list()
+        for i in range(len(subs)):
+            for j in range(len(subs[i].teachers)):
+                name = subs[i].teachers[j].name
+                name = name.lower()
+                res.append( (name,i,j) )
+        return res
 
+    def getSurnames(raw_sentence):
+        tokens = nltk.word_tokenize(raw_sentence)
+        res = []
+        for t in tokens:
+            if len(t) > 1:
+                res.append(t.lower())
+        return res
 
+    def f(surname):
+        sim, id = 1000, -1
+        for x in range(len(teachers)):
+            now_sim = nltk.edit_distance(surname, teachers[x][0])
+            # print("\t", now_sim, surname, teachers[x][0])
+            if now_sim < sim:
+                sim = now_sim
+                id = x
+        # print()
+        return sim, id
+
+    
+    teachers = getTeachers(poll.subjects)
+    surnames = getSurnames(raw)
+    # print(teachers)
+    # print(surnames)
+
+    if len(surnames) < n:
+        return False, "Too few words"
+
+    res = []
+    for s in surnames:
+        similarity, id = f(s)
+        res.append((similarity, id))
+    allow_rate = sorted(res)[n-1][0]
+
+    prior, prefer = [], []
+    cnt = 0
+    for sim, id in res:
+        if sim <= allow_rate and cnt < n:
+            prior.append(teachers[id][1])
+            prefer.append(teachers[id][2])
+            cnt += 1
+
+    # check = []
+    # for i in range(n):
+    #     check.append(poll.subjects[prior[i]].teachers[prefer[i]].name)
+
+    return prior, prefer
 
 
 
@@ -145,6 +202,8 @@ class Response:
         self.prefer = [0] * n
 
 
+
+
 def createRandomPass(n):
     letters = string.ascii_letters + string.digits
     res = "".join(random.choice(letters) for i in range(n))
@@ -153,9 +212,10 @@ def createRandomPass(n):
 
 class Poll:
     owner_id = 0
+    folder_pass = ""
     voting_pass = ""
     admin_pass = ""
-
+    
     title = ""
     expected_count_of_students = 0
     open_stats = False  # statistic can watch somebody
@@ -176,6 +236,7 @@ class Poll:
         
 
     def genPass(self):
+        self.folder_pass = createRandomPass(8)
         self.voting_pass = createRandomPass(16)
         self.admin_pass = createRandomPass(16)
 
@@ -322,6 +383,22 @@ class Poll:
 
         return json.dumps(res, indent="  ", ensure_ascii=False)
 
+
+    def checkResponse(self, prior, prefer):
+        check = []
+        n = len(prior)
+        for i in range(n):
+            check.append(self.subjects[prior[i]].teachers[prefer[i]].name)
+        return check
+
+
+    def parseResponse(self, sentence):
+        prior, prefer = parseResponse(sentence, self)
+        if prior == False:
+            return prefer
+        
+        return self.checkResponse(prior, prefer)
+        
 
 # class EmployeeEncoder(json.JSONEncoder):
 #         def default(self, o):

@@ -14,10 +14,16 @@ class Student:
         self.name = name
         self.prior = _MAX_PRIOR
 
+    def __lt__(a, b):
+        if a.prior != b.prior:
+            return a.prior < b.prior
+        return a.name < b.name
+
 
 class Teacher:
     name = ""
     cap = 0
+    _tmp_cap = 0
     students = list()
 
     def __init__(self, name, cap=0):
@@ -46,7 +52,6 @@ class Teacher:
             print("WARNING!\tdelStudent", self.name, self.students, id, name)
 
 
-
 class Subject:
     name = ""
     teachers = list()
@@ -55,7 +60,76 @@ class Subject:
         self.name = name
         self.teachers = teachers
             # empty object for case when places are over
-        self.teachers.append(Teacher("Out of game")) 
+        # self.teachers.append(Teacher("Out of game")) 
+
+
+    def formLists(self, max_students=0):
+        cnt_required = 0
+        sum_cap = 0
+        has_auto = 0
+
+        for t in self.teachers:
+            cnt_required += len(t.students)
+            if t.cap != 0:
+                sum_cap += t.cap
+            else:
+                has_auto += 1
+
+        max_tmp_cap = cnt_required
+        if max_students and has_auto:
+            max_tmp_cap = (max_students - sum_cap + has_auto - 1) // has_auto
+
+        for i in range(len(self.teachers)):
+            if self.teachers[i].cap:
+                self.teachers[i]._tmp_cap = self.teachers[i].cap
+            else:
+                self.teachers[i]._tmp_cap = max_tmp_cap
+
+        other = []
+
+        results = dict()
+        for t in self.teachers:
+            if not len(t.students):
+                results[t.name] = []
+                continue
+            lst = sorted(t.students)
+
+            if len(lst) < t._tmp_cap:
+                results[t.name] = lst
+                continue
+
+            tmp0, tmp1 = [], []
+            p = lst[t._tmp_cap].prior
+
+            for x in lst:
+                if x.prior < p:
+                    tmp0.append(x)
+                elif x.prior == p:
+                    tmp1.append(x)
+                else:
+                    other.append(x)
+
+            tmp1 = random.shuffle(tmp1)
+            cnt = t._tmp_cap - len(tmp0)
+            tmp0 += tmp0[:cnt]
+            other += tmp0[cnt:]
+            results[t.name] = tmp0
+
+        if len(other):
+            other = random.shuffle(other)
+            for t in self.teachers:
+                while other and len(results[t.name]) < t._tmp_cap:
+                    results[t.name].append(other.pop())
+
+        if len(other):
+            results["Out of game"] = other
+        return results
+
+
+
+
+
+
 
 
 class Response:
@@ -162,8 +236,6 @@ class Poll:
         self.open_stats = open_stats
         self.subjects = subjects
         self.is_close = False
-
-
         
 
     def addResponce(self, r:Response) -> bool:
@@ -204,8 +276,7 @@ class Poll:
             return False
 
         for i in range(n):
-            if r.prefer[i] >= len(self.subjects.teachers)-1: 
-                # "-1" because we has 1 faik teacher
+            if r.prefer[i] >= len(self.subjects.teachers): 
                 return False
 
         return True
@@ -214,6 +285,7 @@ class Poll:
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__, 
             sort_keys=True, indent=4)
+
 
     def showClass(self):
         res = dict()
@@ -228,8 +300,7 @@ class Poll:
             now_s["name"] = s.name
 
             teachers = list()
-            for i in range(len(s.teachers)-1):
-                t = s.teachers[i]
+            for t in s.teachers:
                 name = t.name
                 cap = "auto"
                 if t.cap:
@@ -241,6 +312,15 @@ class Poll:
 
         return json.dumps(res, indent="  ", ensure_ascii=False)
 
+
+    def getResult(self):
+        n = self.expected_count_of_students
+
+        res = dict()
+        for s in self.subjects:
+            res[s.name] = s.formLists(n)
+
+        return json.dumps(res, indent="  ", ensure_ascii=False)
 
 
 # class EmployeeEncoder(json.JSONEncoder):

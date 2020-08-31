@@ -8,3 +8,4 @@ for s in f.readlines():
 p = poll.Poll(0, "", [])
 p.importFromJson(res)
 print(p.showClass())
+print(p.getResult())

@@ -1,0 +1,9 @@
+"title" -- string
+"students" -- int, optional
+"open_results" -- bool, optional
+
+"subjects" -- array of objects
+    "name" -- string
+    "teachers" -- array of objects
+        "name" -- string 
+        "cap" -- string, can be "130", "auto" or "null", optional

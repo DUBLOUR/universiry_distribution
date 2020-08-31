@@ -1,5 +1,3 @@
-/create_room
-
 {"title":"Выбор практиков К-22", 
 "students":30, 
 "open_results":true,

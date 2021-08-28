@@ -1,6 +1,6 @@
 import poll
 
-teachers_file = "teachersOM3.txt"
+teachers_file = "teachersOM3.json"
 students_file = "studentsOM3.txt"
 randomSeed = "abHkk1o3Ac-BKVup"
 

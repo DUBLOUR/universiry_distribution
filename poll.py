@@ -10,16 +10,23 @@ class Student:
 
     _MAX_PRIOR = 1000000
 
-    def __init__(self, id, name, prior=_MAX_PRIOR):
+    def __init__(self, id, name, prior=None):
         self.id = id
         self.name = name
-        self.prior = _MAX_PRIOR
+        if prior == None:
+            self.prior = _MAX_PRIOR
+        else:
+            self.prior = prior
 
     def __lt__(a, b):
         if a.prior != b.prior:
             return a.prior < b.prior
         return a.name < b.name
 
+
+    def __str__(self):
+        return self.name
+ 
 
 class Teacher:
     name = ""
@@ -65,6 +72,7 @@ class Subject:
 
 
     def formLists(self, max_students=0):
+        #return self.teachers
         cnt_required = 0
         sum_cap = 0
         has_auto = 0
@@ -110,20 +118,27 @@ class Subject:
                 else:
                     other.append(x)
 
-            tmp1 = random.shuffle(tmp1)
+            random.shuffle(tmp1)
             cnt = t._tmp_cap - len(tmp0)
-            tmp0 += tmp0[:cnt]
-            other += tmp0[cnt:]
+            tmp0 += tmp1[:cnt]
+            other += tmp1[cnt:]
             results[t.name] = tmp0
 
         if len(other):
-            other = random.shuffle(other)
+            random.shuffle(other)
             for t in self.teachers:
                 while other and len(results[t.name]) < t._tmp_cap:
                     results[t.name].append(other.pop())
 
         if len(other):
             results["Out of game"] = other
+
+        def lex_cmp(a, b):
+            return a.name < b.name
+
+        for teacher in results:
+            results[teacher].sort(key=lambda student: student.name)
+
         return results
 
 
@@ -161,9 +176,7 @@ def parseResponse(raw, poll):
     
     teachers = getTeachers(poll.subjects)
     surnames = getSurnames(raw)
-    # print(teachers)
-    # print(surnames)
-
+    
     if len(surnames) < n:
         return False, "Too few words"
 
@@ -195,19 +208,29 @@ class Response:
     prior = list() # permutation from 0 to n-1
     prefer = list() 
 
-    def __init__(self, id, name, n, prior, prefer):
-        self.owner_id = id
-        self.name = name
-        self.prior = [x for x in range(n)]
-        self.prefer = [0] * n
+    # # def __init__(self, id, name, n, prior, prefer):
+    # #     self.owner_id = id
+    # #     self.name = name
+    # #     self.prior = [x for x in range(n)]
+    # #     self.prefer = [0] * n
+
+
+    # def fill(raw, poll):
+    #     self.prior, self.prefer = parseResponse(raw, poll)
 
 
 
-
-def createRandomPass(n):
+def createRandomPass(n:int) -> str:
     letters = string.ascii_letters + string.digits
     res = "".join(random.choice(letters) for i in range(n))
     return res
+
+
+class JSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, Student):
+            return str(o)
+        return json.JSONEncoder.default(self, o)
 
 
 class Poll:
@@ -225,7 +248,8 @@ class Poll:
     #responces = list()
 
 
-    def __init__(self, id, title, subjects, students=0, open_stats=False):
+    def __init__(self, id, title, subjects, students=0, open_stats=False, randomSeed=None):
+        random.seed(randomSeed)
         self.owner_id = id
         self.title = title
         self.expected_count_of_students = students
@@ -299,13 +323,14 @@ class Poll:
         self.is_close = False
         
 
-    def addResponce(self, r:Response) -> bool:
+    def addResponse(self, r:Response) -> bool:
         if not self.validate_response(r):
             return False
 
-        t = self.subjects.teachers
-        for i in range(len(r)):
-            t[ prefer[i] ].addStudent(r.owner_id, r.name, prior[i])
+        #t = self.subjects.teachers
+        #for i in range(len(r)):
+        for i in range(len(r.prior)):
+            self.subjects[ r.prior[i] ].teachers[ r.prefer[i] ].addStudent(r.owner_id, r.name, r.prior[i])
             # for j in range(len(t)):
             #     if j == prefer[i]:
             #         t[j].addStudent(r.owner_id, r.name, prior[i])
@@ -317,27 +342,26 @@ class Poll:
         return True
 
 
-    def delResponce(self, r:Response):
-        t = self.subjects.teachers
-        for i in range(len(r)):
-            t[ prefer[i] ].delStudent(r.owner_id, r.name, prior[i])
+    def delResponse(self, r:Response):
+        for i in range(len(r.prior)):
+            self.subjects[ r.prior[i] ].teachers[ r.prefer[i] ].delStudent(r.owner_id, r.name, r.prior[i])
         
         self.cnt_responces -= 1
 
 
     def validate_response(self, r:Response) -> bool:
-        n = len(r)
+        n = len(r.prior)
         if n != len(self.subjects): 
             return False
 
-        used = [False]*n
+        has_prior = [False]*n
         for i in r.prior:
             has_prior[i] = True
-        if False in used:
+        if False in has_prior:
             return False
 
         for i in range(n):
-            if r.prefer[i] >= len(self.subjects.teachers): 
+            if r.prefer[i] >= len(self.subjects[r.prior[i]].teachers): 
                 return False
 
         return True
@@ -381,7 +405,8 @@ class Poll:
         for s in self.subjects:
             res[s.name] = s.formLists(n)
 
-        return json.dumps(res, indent="  ", ensure_ascii=False)
+
+        return json.dumps(res, indent="  ", ensure_ascii=False, cls=JSONEncoder)
 
 
     def checkResponse(self, prior, prefer):
